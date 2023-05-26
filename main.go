@@ -8,8 +8,9 @@ import (
 	http "github.com/bogdanfinn/fhttp"
 	tls_client "github.com/bogdanfinn/tls-client"
 
-	"github.com/fvbock/endless"
+	// "github.com/fvbock/endless"
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 var (
@@ -26,7 +27,10 @@ var (
 )
 
 func main() {
-
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
 	if http_proxy != "" {
 		client.SetProxy(http_proxy)
 		println("Proxy set:" + http_proxy)
@@ -44,7 +48,8 @@ func main() {
 	handler.Any("/api/*path", proxy)
 
 	gin.SetMode(gin.ReleaseMode)
-	endless.ListenAndServe(os.Getenv("HOST")+":"+PORT, handler)
+	handler.Run(os.Getenv("HOST") + ":" + PORT)
+	// endless.ListenAndServe(os.Getenv("HOST")+":"+PORT, handler)
 }
 
 func proxy(c *gin.Context) {
