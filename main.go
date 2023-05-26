@@ -8,7 +8,7 @@ import (
 	http "github.com/bogdanfinn/fhttp"
 	tls_client "github.com/bogdanfinn/tls-client"
 
-	// "github.com/fvbock/endless"
+	"github.com/acheong08/endless"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
@@ -17,7 +17,7 @@ var (
 	jar     = tls_client.NewCookieJar()
 	options = []tls_client.HttpClientOption{
 		tls_client.WithTimeoutSeconds(360),
-		tls_client.WithClientProfile(tls_client.Chrome_112),
+		tls_client.WithClientProfile(tls_client.Firefox_110),
 		tls_client.WithNotFollowRedirects(),
 		tls_client.WithCookieJar(jar), // create cookieJar instance and pass it as argument
 	}
@@ -25,6 +25,14 @@ var (
 	user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36"
 	http_proxy = os.Getenv("http_proxy")
 )
+
+func admin(c *gin.Context) {
+	if c.GetHeader("Authorization") != os.Getenv("PASSWORD") {
+		c.String(401, "Unauthorized")
+		return
+	}
+	c.Next()
+}
 
 func main() {
 	err := godotenv.Load()
@@ -43,6 +51,37 @@ func main() {
 	handler := gin.Default()
 	handler.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "pong"})
+	})
+
+	handler.PATCH("/admin/puid", admin, func(c *gin.Context) {
+		// Get the password from the request (json) and update the password
+		type puid_struct struct {
+			PUID string `json:"puid"`
+		}
+		var puid puid_struct
+		err := c.BindJSON(&puid)
+		if err != nil {
+			c.String(400, "puid not provided")
+			return
+		}
+		// Set environment variable
+		os.Setenv("PUID", puid.PUID)
+		c.String(200, "puid updated")
+	})
+	handler.PATCH("/admin/password", admin, func(c *gin.Context) {
+		// Get the password from the request (json) and update the password
+		type password_struct struct {
+			PASSWORD string `json:"password"`
+		}
+		var password password_struct
+		err := c.BindJSON(&password)
+		if err != nil {
+			c.String(400, "password not provided")
+			return
+		}
+		// Set environment variable
+		os.Setenv("PASSWORD", password.PASSWORD)
+		c.String(200, "PASSWORD updated")
 	})
 
 	handler.Any("/api/*path", proxy)
@@ -89,7 +128,7 @@ func proxy(c *gin.Context) {
 	request.Header.Set("sec-gpc", "1")
 	request.Header.Set("user-agent", user_agent)
 	if os.Getenv("PUID") != "" {
-		request.AddCookie(&http.Cookie{Name: "_puid", Value: os.Getenv("PUID")})
+		request.Header.Set("cookie", "puid="+os.Getenv("PUID")+";")
 	}
 
 	response, err = client.Do(request)
