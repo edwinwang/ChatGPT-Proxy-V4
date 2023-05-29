@@ -17,7 +17,7 @@ var (
 	jar     = tls_client.NewCookieJar()
 	options = []tls_client.HttpClientOption{
 		tls_client.WithTimeoutSeconds(360),
-		tls_client.WithClientProfile(tls_client.Firefox_110),
+		tls_client.WithClientProfile(tls_client.Safari_IOS_16_0),
 		tls_client.WithNotFollowRedirects(),
 		tls_client.WithCookieJar(jar), // create cookieJar instance and pass it as argument
 	}
@@ -128,7 +128,7 @@ func proxy(c *gin.Context) {
 	request.Header.Set("sec-gpc", "1")
 	request.Header.Set("user-agent", user_agent)
 	if os.Getenv("PUID") != "" {
-		request.Header.Set("cookie", "puid="+os.Getenv("PUID")+";")
+		request.Header.Set("cookie", "_puid="+os.Getenv("PUID")+";")
 	}
 
 	response, err = client.Do(request)
