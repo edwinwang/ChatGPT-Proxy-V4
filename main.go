@@ -4,14 +4,21 @@ import (
 	"io"
 	"log"
 	"os"
+	"time"
 
 	http "github.com/bogdanfinn/fhttp"
 	tls_client "github.com/bogdanfinn/tls-client"
 
+	"github.com/acheong08/OpenAIAuth/auth"
 	"github.com/acheong08/endless"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
+
+type auth_struct struct {
+	OpenAI_Email    string `json:"openai_email"`
+	OpenAI_Password string `json:"openai_password"`
+}
 
 var (
 	jar     = tls_client.NewCookieJar()
@@ -21,17 +28,43 @@ var (
 		tls_client.WithNotFollowRedirects(),
 		tls_client.WithCookieJar(jar), // create cookieJar instance and pass it as argument
 	}
-	client, _  = tls_client.NewHttpClient(tls_client.NewNoopLogger(), options...)
-	user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36"
-	http_proxy = os.Getenv("http_proxy")
+	client, _      = tls_client.NewHttpClient(tls_client.NewNoopLogger(), options...)
+	user_agent     = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36"
+	http_proxy     = os.Getenv("http_proxy")
+	authorizations auth_struct
 )
 
 func admin(c *gin.Context) {
 	if c.GetHeader("Authorization") != os.Getenv("PASSWORD") {
 		c.String(401, "Unauthorized")
+		c.Abort()
 		return
 	}
 	c.Next()
+}
+
+func init() {
+	authorizations.OpenAI_Email = os.Getenv("OPENAI_EMAIL")
+	authorizations.OpenAI_Password = os.Getenv("OPENAI_PASSWORD")
+	if authorizations.OpenAI_Email != "" && authorizations.OpenAI_Password != "" {
+		go func() {
+			for {
+				authenticator := auth.NewAuthenticator(authorizations.OpenAI_Email, authorizations.OpenAI_Password, http_proxy)
+				err := authenticator.Begin()
+				if err != nil {
+					log.Println(err)
+					break
+				}
+				puid, err := authenticator.GetPUID()
+				if err != nil {
+					break
+				}
+				os.Setenv("PUID", puid)
+				println(puid)
+				time.Sleep(24 * time.Hour * 7)
+			}
+		}()
+	}
 }
 
 func main() {
@@ -82,6 +115,14 @@ func main() {
 		// Set environment variable
 		os.Setenv("PASSWORD", password.PASSWORD)
 		c.String(200, "PASSWORD updated")
+	})
+	handler.PATCH("/admin/openai", admin, func(c *gin.Context) {
+		err := c.BindJSON(&authorizations)
+		if err != nil {
+			c.JSON(400, gin.H{"error": "JSON invalid"})
+		}
+		os.Setenv("OPENAI_EMAIL", authorizations.OpenAI_Email)
+		os.Setenv("OPENAI_PASSWORD", authorizations.OpenAI_Password)
 	})
 
 	handler.Any("/api/*path", proxy)
@@ -137,7 +178,10 @@ func proxy(c *gin.Context) {
 		return
 	}
 	defer response.Body.Close()
-	c.Header("Content-Type", response.Header.Get("Content-Type"))
+	// Copy headers from response
+	for k, v := range response.Header {
+		c.Header(k, v[0])
+	}
 	// Get status code
 	c.Status(response.StatusCode)
 
