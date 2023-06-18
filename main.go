@@ -4,6 +4,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	http "github.com/bogdanfinn/fhttp"
@@ -32,6 +33,7 @@ var (
 	user_agent     = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36"
 	http_proxy     = os.Getenv("http_proxy")
 	authorizations auth_struct
+	OpenAI_HOST    = os.Getenv("OPENAI_HOST")
 )
 
 func admin(c *gin.Context) {
@@ -44,6 +46,9 @@ func admin(c *gin.Context) {
 }
 
 func init() {
+	if OpenAI_HOST == "" {
+		OpenAI_HOST = "chat.openai.com"
+	}
 	authorizations.OpenAI_Email = os.Getenv("OPENAI_EMAIL")
 	authorizations.OpenAI_Password = os.Getenv("OPENAI_PASSWORD")
 	if authorizations.OpenAI_Email != "" && authorizations.OpenAI_Password != "" {
@@ -143,9 +148,9 @@ func proxy(c *gin.Context) {
 	var response *http.Response
 
 	if c.Request.URL.RawQuery != "" {
-		url = "https://chat.openai.com/backend-api" + c.Param("path") + "?" + c.Request.URL.RawQuery
+		url = "https://" + OpenAI_HOST + "/backend-api" + c.Param("path") + "?" + c.Request.URL.RawQuery
 	} else {
-		url = "https://chat.openai.com/backend-api" + c.Param("path")
+		url = "https://" + OpenAI_HOST + "/backend-api" + c.Param("path")
 	}
 	request_method = c.Request.Method
 
@@ -154,8 +159,8 @@ func proxy(c *gin.Context) {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
-	request.Header.Set("Host", "chat.openai.com")
-	request.Header.Set("Origin", "https://chat.openai.com/chat")
+	request.Header.Set("Host", ""+OpenAI_HOST+"")
+	request.Header.Set("Origin", "https://"+OpenAI_HOST+"/chat")
 	request.Header.Set("Connection", "keep-alive")
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Keep-Alive", "timeout=360")
@@ -171,6 +176,10 @@ func proxy(c *gin.Context) {
 	if os.Getenv("PUID") != "" {
 		request.Header.Set("cookie", "_puid="+os.Getenv("PUID")+";")
 	}
+	puid_cookie, err := c.Request.Cookie("_puid")
+	if err == nil {
+		request.Header.Set("cookie", "_puid="+puid_cookie.Value+";")
+	}
 
 	response, err = client.Do(request)
 	if err != nil {
@@ -180,6 +189,9 @@ func proxy(c *gin.Context) {
 	defer response.Body.Close()
 	// Copy headers from response
 	for k, v := range response.Header {
+		if strings.ToLower(k) == "content-encoding" {
+			continue
+		}
 		c.Header(k, v[0])
 	}
 	// Get status code
