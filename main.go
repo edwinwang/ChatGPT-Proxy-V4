@@ -134,7 +134,7 @@ func main() {
 
 	gin.SetMode(gin.ReleaseMode)
 	handler.Run(os.Getenv("HOST") + ":" + PORT)
-	// endless.ListenAndServe(os.Getenv("HOST")+":"+PORT, handler)
+	endless.ListenAndServe(os.Getenv("HOST")+":"+PORT, handler)
 }
 
 func proxy(c *gin.Context) {
