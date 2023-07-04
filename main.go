@@ -3,9 +3,9 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -71,11 +71,19 @@ func init() {
 				}
 				os.Setenv("PUID", puid)
 				println(puid)
+				client.SetCookies(&url.URL{
+					Host: OpenAI_HOST,
+				}, []*http.Cookie{
+					{
+						Name:  "_puid",
+						Value: puid,
+					},
+				})
 				time.Sleep(24 * time.Hour * 7)
 			}
 		}()
 	}
-	arkose.SetTLSClient(&client)
+	// arkose.SetTLSClient(&client)
 }
 
 func main() {
@@ -143,15 +151,6 @@ func main() {
 }
 
 func proxy(c *gin.Context) {
-	if c.Request.URL.Path == "/api/arkose" {
-		arkose_form, hex := arkose.GetForm()
-		c.JSON(200, gin.H{"form": arkose_form, "hex": hex})
-		return
-	}
-
-	// Remove _cfuvid cookie from session
-	jar.SetCookies(c.Request.URL, []*http.Cookie{})
-
 	var url string
 	var err error
 	var request_method string
@@ -170,7 +169,7 @@ func proxy(c *gin.Context) {
 		if c.Request.Body != nil {
 			err := json.NewDecoder(c.Request.Body).Decode(&request_body)
 			if err != nil {
-				c.JSON(400, gin.H{"error": err.Error()})
+				c.JSON(400, gin.H{"error": "JSON invalid"})
 				return
 			}
 		}
@@ -181,15 +180,15 @@ func proxy(c *gin.Context) {
 		}
 		if strings.HasPrefix(request_body["model"].(string), "gpt-4") {
 			if _, ok := request_body["arkose_token"]; !ok {
-				token, err := arkose.GetOpenAIToken()
+				log.Println("arkose token not provided")
+				token, _, err := arkose.GetOpenAIToken()
 				var arkose_token string
-				if err == nil {
-					arkose_token = token
-				} else {
-					fmt.Println(err)
+				if err != nil {
+					c.JSON(500, gin.H{"error": err.Error()})
+					return
 				}
+				arkose_token = token
 				request_body["arkose_token"] = arkose_token
-				println(arkose_token)
 			}
 		}
 		body_json, err := json.Marshal(request_body)
@@ -216,9 +215,6 @@ func proxy(c *gin.Context) {
 	request.Header.Set("sec-fetch-site", "same-origin")
 	request.Header.Set("sec-gpc", "1")
 	request.Header.Set("user-agent", user_agent)
-	if os.Getenv("PUID") != "" {
-		request.Header.Set("cookie", "_puid="+os.Getenv("PUID")+";")
-	}
 	if c.Request.Header.Get("PUID") != "" {
 		request.Header.Set("cookie", "_puid="+c.Request.Header.Get("PUID")+";")
 	}
