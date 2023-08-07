@@ -30,12 +30,12 @@ var (
 	jar     = tls_client.NewCookieJar()
 	options = []tls_client.HttpClientOption{
 		tls_client.WithTimeoutSeconds(360),
-		tls_client.WithClientProfile(tls_client.Safari_IOS_16_0),
+		tls_client.WithClientProfile(tls_client.Firefox_110),
 		tls_client.WithNotFollowRedirects(),
 		tls_client.WithCookieJar(jar), // create cookieJar instance and pass it as argument
 	}
 	client, _      = tls_client.NewHttpClient(tls_client.NewNoopLogger(), options...)
-	user_agent     = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1"
+	user_agent     = "Mozilla/5.0 (X11; Linux x86_64; rv:114.0) Gecko/20100101 Firefox/114.0"
 	http_proxy     = os.Getenv("http_proxy")
 	authorizations auth_struct
 	OpenAI_HOST    = os.Getenv("OPENAI_HOST")
